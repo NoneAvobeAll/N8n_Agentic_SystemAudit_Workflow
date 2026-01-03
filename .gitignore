@@ -1,0 +1,59 @@
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# N8n workflow exports with credentials
+*.json
+!workflows/*.json
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# SSH keys
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+!*.pub
+
+# Certificates
+*.crt
+*.p12
+*.pfx
+*.der
+
+# Test data
+test-data/
+tests/data/
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Build artifacts
+dist/
+build/
+node_modules/
