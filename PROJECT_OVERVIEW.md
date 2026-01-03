@@ -29,7 +29,7 @@ N8n_Agentic_SystemAudit_Workflow/
 ├── CONTRIBUTING.md                         # Contribution guidelines
 ├── .env.example                           # Environment template
 ├── .gitignore                             # Git ignore rules
-└── LICENSE                                # MIT License
+└── LICENSE                                # GNU GPL v3.0
 ```
 
 ## Key Features at a Glance
@@ -314,7 +314,7 @@ For detailed troubleshooting:
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) file for details.
+GNU General Public License v3.0 - See [LICENSE](LICENSE) file for details.
 
 ## Support & Community
 
