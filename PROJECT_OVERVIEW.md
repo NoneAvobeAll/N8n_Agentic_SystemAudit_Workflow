@@ -354,6 +354,6 @@ We welcome contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 **Status:** ✅ Production Ready
 **Last Updated:** 2024-01-15
-**Maintained By:** Community Contributors
+**Maintained By:** Abubakkar Khan Fazla Rabbi — System Enngineer | Ethical Hacker
 
 For the complete experience, start with [QUICKSTART.md](QUICKSTART.md) to get up and running in 10 minutes!

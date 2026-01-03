@@ -475,7 +475,7 @@
     },
     {
       "parameters": {
-        "content": "## ⚙️ CONFIGURATION\n\nEdit the **Config** node to add:\n- Server list with credentials\n- Threshold values for alerts\n- Telegram Chat ID\n- Time windows for log analysis\n\nFormat:\n`host|username|password|os_type|port|protocol`\n\n- `os_type`: auto, linux, windows\n- `protocol`: ssh, winrm",
+        "content": "## ⚙️ CONFIGURATION\n\nEdit the **Config** node to add:\n- Server list with credentials\n- Threshold values for alerts\n- Telegram Chat ID\n- Time windows for log analysis\n\nFormat:\n`host|username|password|os_type|port|protocol`\n\n- `os_type`: auto, linux, windows\n- `protocol`: ssh, winrm\n\n---\n\n**Author / Maintainer**\nAbubakkar Khan Fazla Rabbi\nSystem Enngineer | Ethical Hacker",
         "height": 320,
         "width": 320
       },

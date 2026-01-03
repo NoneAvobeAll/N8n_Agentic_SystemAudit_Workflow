@@ -460,6 +460,11 @@ Contributions are welcome! Areas for improvement:
 - Web dashboard integration
 - Historical reporting
 
+## 👤 Author / Maintainer
+
+**Abubakkar Khan Fazla Rabbi**  
+System Enngineer | Ethical Hacker
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
