@@ -12,12 +12,12 @@
           ]
         }
       },
-      "id": "schedule-trigger-001",
+      "id": "19dccfa1-5ca0-45ba-b57e-ef337b88d580",
       "name": "Schedule Trigger",
       "type": "n8n-nodes-base.scheduleTrigger",
       "position": [
-        -700,
-        -100
+        -2096,
+        304
       ],
       "typeVersion": 1.2
     },
@@ -29,7 +29,7 @@
               "id": "cfg-1",
               "name": "servers",
               "type": "string",
-              "value": "# Format: host|username|password|os_type|port|protocol\n# os_type: auto (auto-detect), linux, windows\n# protocol: ssh (default for linux), winrm (default for windows)\n192.168.1.10|admin|secure_password|auto|22|ssh\n192.168.1.11|administrator|secure_password|auto|5986|winrm\n192.168.1.12|devuser|secure_password|linux|22|ssh\n192.168.1.13|svcadmin|secure_password|windows|5986|winrm"
+              "value": "=192.168.0.10|n8nuser|cr4ck3dBy2026|auto|22|ssh\n192.168.0.9|n8nuser|cr4ck3dBy2026|auto|22|ssh\n192.168.0.8|n8nuser|cr4ck3dBy2026|linux|22|ssh\n192.168.0.15|n8nuser|cr4ck3dBy2026|auto|22|ssh\n192.168.77.71|n8nuser|sct@123|auto|22|ssh"
             },
             {
               "id": "cfg-2",
@@ -59,7 +59,7 @@
               "id": "cfg-6",
               "name": "telegram_chat_id",
               "type": "string",
-              "value": "YOUR_TELEGRAM_CHAT_ID"
+              "value": "-00000"
             },
             {
               "id": "cfg-7",
@@ -83,12 +83,12 @@
         },
         "options": {}
       },
-      "id": "config-node-001",
+      "id": "c4e343e0-5f9e-4315-b814-b2341b75417f",
       "name": "Config",
       "type": "n8n-nodes-base.set",
       "position": [
-        -500,
-        -200
+        -1904,
+        208
       ],
       "typeVersion": 3.4
     },
@@ -106,12 +106,12 @@
         },
         "options": {}
       },
-      "id": "parse-servers-001",
+      "id": "9f414420-4f1a-43b6-a159-e5258373c274",
       "name": "Parse Servers",
       "type": "n8n-nodes-base.set",
       "position": [
-        -320,
-        -50
+        -1728,
+        352
       ],
       "typeVersion": 3.4
     },
@@ -120,12 +120,12 @@
         "fieldToSplitOut": "serverList",
         "options": {}
       },
-      "id": "split-out-001",
+      "id": "723a8632-74fc-4be9-ade2-f9c363f333da",
       "name": "Split Servers",
       "type": "n8n-nodes-base.splitOut",
       "position": [
-        -120,
-        -100
+        -1520,
+        304
       ],
       "typeVersion": 1
     },
@@ -134,12 +134,12 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// Server OS Detection and Connection Test\nconst { execSync } = require('child_process');\n\nconst server = $input.item.json;\nconst cfg = $('Config').first().json;\n\nif (!server || !server.host || !server.user) {\n  return {\n    json: {\n      ...server,\n      detected_os: 'unknown',\n      distro: 'unknown',\n      connected: false,\n      error: 'Invalid server configuration'\n    }\n  };\n}\n\n// Auto-detect port if not specified\nconst sshPort = server.port !== 'auto' ? server.port : '22';\nconst winrmPort = server.port !== 'auto' ? server.port : '5986';\nconst protocol = server.protocol;\n\nlet detectedOS = 'unknown';\nlet distro = 'unknown';\nlet connected = false;\nlet error = null;\nlet finalPort = sshPort;\nlet finalProtocol = 'ssh';\n\n// Try SSH first (Linux)\nif (server.os_type === 'auto' || server.os_type === 'linux' || protocol === 'auto' || protocol === 'ssh') {\n  try {\n    execSync(\n      `sshpass -p '${server.pass}' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=no ${server.user}@${server.host} -p ${sshPort} \"echo 'SSH_SUCCESS'\" 2>&1`,\n      { encoding: 'utf8', timeout: 10000 }\n    );\n    connected = true;\n    finalPort = sshPort;\n    finalProtocol = 'ssh';\n    \n    // Detect Linux distro\n    try {\n      const osInfo = execSync(\n        `sshpass -p '${server.pass}' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=5 ${server.user}@${server.host} -p ${sshPort} \"cat /etc/os-release 2>/dev/null | grep -E '^ID=' | cut -d'=' -f2 | tr -d '\\\"' || echo 'unknown'\"`,\n        { encoding: 'utf8', timeout: 5000 }\n      );\n      distro = osInfo.trim().toLowerCase() || 'linux';\n    } catch (e) {\n      distro = 'linux';\n    }\n    \n    detectedOS = 'linux';\n  } catch (sshError) {\n    // SSH failed, try WinRM if auto-detect or windows specified\n    if (server.os_type === 'auto' || server.os_type === 'windows' || protocol === 'auto' || protocol === 'winrm') {\n      try {\n        // Try basic WinRM connection test\n        const winrmCheck = `curl -k --connect-timeout 5 --max-time 10 https://${server.host}:${winrmPort}/wsman 2>&1`;\n        execSync(winrmCheck, { encoding: 'utf8', timeout: 10000 });\n        detectedOS = 'windows';\n        distro = 'windows';\n        finalPort = winrmPort;\n        finalProtocol = 'winrm';\n        connected = true;\n      } catch (winrmError) {\n        connected = false;\n        error = `Connection failed: SSH - ${sshError.message.substring(0, 100)} | WinRM - ${winrmError.message.substring(0, 100)}`;\n      }\n    } else {\n      connected = false;\n      error = `SSH connection failed: ${sshError.message.substring(0, 200)}`;\n    }\n  }\n} else if (server.os_type === 'windows' || protocol === 'winrm') {\n  // Windows specified, try WinRM directly\n  try {\n    const winrmCheck = `curl -k --connect-timeout 5 --max-time 10 https://${server.host}:${winrmPort}/wsman 2>&1`;\n    execSync(winrmCheck, { encoding: 'utf8', timeout: 10000 });\n    detectedOS = 'windows';\n    distro = 'windows';\n    finalPort = winrmPort;\n    finalProtocol = 'winrm';\n    connected = true;\n  } catch (winrmError) {\n    connected = false;\n    error = `WinRM connection failed: ${winrmError.message.substring(0, 200)}`;\n  }\n}\n\nreturn {\n  json: {\n    ...server,\n    detected_os: detectedOS,\n    distro: distro,\n    connected: connected,\n    port: finalPort,\n    protocol: finalProtocol,\n    error: error\n  }\n};"
       },
-      "id": "detect-os-001",
+      "id": "d595cb01-e43a-48e9-a450-024f15987e91",
       "name": "Detect OS & Connect",
       "type": "n8n-nodes-base.code",
       "position": [
-        100,
-        -100
+        -1296,
+        304
       ],
       "typeVersion": 2
     },
@@ -148,12 +148,12 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// Route to OS-specific audit based on detection\nconst d = $input.item.json;\n\nreturn {\n  json: {\n    ...d,\n    routing_key: d.connected ? d.detected_os : 'error',\n    audit_timestamp: new Date().toISOString()\n  }\n};"
       },
-      "id": "route-os-001",
+      "id": "ef5ab788-de2f-4215-ab47-5c1026aa79f9",
       "name": "Route by OS",
       "type": "n8n-nodes-base.code",
       "position": [
-        300,
-        -100
+        -1104,
+        304
       ],
       "typeVersion": 2
     },
@@ -237,40 +237,43 @@
         },
         "options": {}
       },
-      "id": "switch-os-001",
+      "id": "e843bf5c-52f0-47c4-bfa6-190901b750cc",
       "name": "OS Router",
       "type": "n8n-nodes-base.switch",
       "position": [
-        480,
-        -100
+        -928,
+        304
       ],
       "typeVersion": 3
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "\n// Linux Audit - Production Safe Commands Only\nconst { execSync } = require('child_process');\n\nconst d = $input.item.json;\nconst cfg = $('Config').first().json;\n\nconst sshBase = `sshpass -p '${d.pass}' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${d.user}@${d.host} -p ${d.port}`;\n\nlet auditData = {\n  hostname: d.host,\n  os: 'linux',\n  distro: d.distro,\n  username: d.user,\n  audit_timestamp: d.audit_timestamp,\n  ssh_connected: true,\n  errors: []\n};\n\ntry {\n  // CPU Load (safe, read-only)\n  const cpuLoad = execSync(\n    `${sshBase} \"uptime | awk -F'load average:' '{print \\$2}' 2>/dev/null || echo 'N/A'\"`,\n    { encoding: 'utf8', timeout: 10000 }\n  );\n  auditData.cpu_load = cpuLoad.trim();\n\n  // CPU Usage percentage (safe, read-only)\n  try {\n    const cpuUsage = execSync(\n      `${sshBase} \"mpstat 1 1 2>/dev/null | awk 'END{print 100-\\$NF}' || top -bn1 | grep 'Cpu(s)' | awk '{print 100-\\$8}'\"`,\n      { encoding: 'utf8', timeout: 10000 }\n    );\n    auditData.cpu_pct = parseFloat(cpuUsage.trim()) || 0;\n  } catch (e) {\n    auditData.cpu_pct = 0;\n  }\n\n  // Memory Usage (safe, read-only)\n  const memory = execSync(\n    `${sshBase} \"free -m | awk 'NR==2{printf \"%s|%s|%s|%.2f\", \\$2, \\$3, \\$4, \\$3*100/\\$2}'\"`,\n    { encoding: 'utf8', timeout: 10000 }\n  );\n  const memParts = memory.includes('|') ? memory.trim().split('|') : ['0','0','0','0'];\n  auditData.mem_total = parseInt(memParts[0]) || 0;\n  auditData.mem_used = parseInt(memParts[1]) || 0;\n  auditData.mem_free = parseInt(memParts[2]) || 0;\n  auditData.mem_pct = parseFloat(memParts[3]) || 0;\n\n  // Disk Usage (safe, read-only)\n  const disk = execSync(\n    `${sshBase} \"df -h / | awk 'NR==2{printf \"%s|%s|%s\", \\$5, \\$3, \\$2}'\"`,\n    { encoding: 'utf8', timeout: 10000 }\n  );\n  const diskParts = disk.includes('|') ? disk.trim().split('|') : ['0%','0','0'];\n  auditData.disk_used_pct = parseInt(diskParts[0]) || 0;\n  auditData.disk_used = diskParts[1] || 'N/A';\n  auditData.disk_total = diskParts[2] || 'N/A';\n\n  // Disk I/O (safe, read-only)\n  try {\n    const diskIO = execSync(\n      `${sshBase} \"iostat -x 1 2 2>/dev/null | awk '/^[sv]d/ {print \\$1\"|\"\\$14}' | tail -1 || echo 'N/A|0'\"`,\n      { encoding: 'utf8', timeout: 15000 }\n    );\n    const ioParts = diskIO.includes('|') ? diskIO.trim().split('|') : ['unknown','0'];\n    auditData.disk_name = ioParts[0] || 'unknown';\n    auditData.disk_util_pct = parseFloat(ioParts[1]) || 0;\n  } catch (e) {\n    auditData.disk_io_error = 'iostat not available';\n    auditData.disk_name = 'unknown';\n    auditData.disk_util_pct = 0;\n  }\n\n  // System Uptime (safe, read-only)\n  const uptime = execSync(\n    `${sshBase} \"uptime -p 2>/dev/null || uptime\"`,\n    { encoding: 'utf8', timeout: 10000 }\n  );\n  auditData.uptime = uptime.trim();\n\n  // Recent Errors from Journal (safe, read-only)\n  try {\n    const journalErrors = execSync(\n      `${sshBase} \"journalctl -q -p err -n ${cfg.max_error_lines} --no-pager --since '${cfg.time_window_min} minutes ago' 2>/dev/null || echo 'No journal errors'\"`,\n      { encoding: 'utf8', timeout: 15000 }\n    );\n    auditData.journal_errors = journalErrors.trim();\n  } catch (e) {\n    auditData.journal_errors = 'Journal not available';\n  }\n\n  // Service Status (safe, read-only check)\n  const services = ['nginx', 'apache2', 'ssh', 'docker', 'mysql', 'postgresql'];\n  let serviceStatus = [];\n  for (const service of services) {\n    try {\n      const status = execSync(\n        `${sshBase} \"systemctl is-active ${service} 2>/dev/null || echo 'not-installed'\"`,\n        { encoding: 'utf8', timeout: 5000 }\n      );\n      if (status.trim() !== 'not-installed') {\n        serviceStatus.push(`${service}:${status.trim()}`);\n      }\n    } catch (e) {\n      // Service not installed or not accessible\n    }\n  }\n  auditData.service_status = serviceStatus.join(', ');\n\n  // Process Count (safe, read-only)\n  const procCount = execSync(\n    `${sshBase} \"ps aux | wc -l\"`,\n    { encoding: 'utf8', timeout: 10000 }\n  );\n  auditData.process_count = parseInt(procCount.trim()) || 0;\n\n  // Network Connections (safe, read-only, limited output)\n  try {\n    const connections = execSync(\n      `${sshBase} \"netstat -an 2>/dev/null | grep ESTABLISHED | wc -l || ss -an | grep ESTAB | wc -l\"`,\n      { encoding: 'utf8', timeout: 10000 }\n    );\n    auditData.active_connections = parseInt(connections.trim()) || 0;\n  } catch (e) {\n    auditData.active_connections = 0;\n  }\n\n  // Login Users (safe, read-only)\n  try {\n    const users = execSync(\n      `${sshBase} \"who -q 2>/dev/null | head -1 || echo 'N/A'\"`,\n      { encoding: 'utf8', timeout: 5000 }\n    );\n    auditData.logged_users = users.trim();\n  } catch (e) {\n    auditData.logged_users = 'N/A';\n  }\n\n} catch (error) {\n  auditData.ssh_connected = false;\n  auditData.errors.push(error.message.substring(0, 200));\n}\n\nreturn { json: auditData };\n"
+        "jsCode": "// Linux Audit - Production Safe Commands (Optimized for Speed)\nconst { execSync } = require('child_process');\n\nconst d = $input.item.json;\nconst cfg = $('Config').first().json;\n\nconst sshBase = `sshpass -p '${d.pass}' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=8 ${d.user}@${d.host} -p ${d.port}`;\n\nlet auditData = {\n  hostname: d.host,\n  os: 'linux',\n  distro: d.distro,\n  username: d.user,\n  audit_timestamp: d.audit_timestamp,\n  ssh_connected: true,\n  errors: []\n};\n\n// BATCH 1: CPU, Memory, Disk in one SSH call\ntry {\n  const sysInfo = execSync(\n    `${sshBase} \"echo 'CPU_LOAD:'; uptime | awk -F'load average:' '{print \\\\$2}' 2>/dev/null; echo 'CPU_PCT:'; top -bn1 | grep 'Cpu(s)' | awk '{print 100-\\\\$8}' 2>/dev/null; echo 'MEM:'; free -m | awk 'NR==2{print \\\\$2\\\\\\\"|\\\\\\\"\\\\$3\\\\\\\"|\\\\\\\"\\\\$4\\\\\\\"|\\\\\\\"\\\\$3*100/\\\\$2}'; echo 'DISK:'; df -h / | awk 'NR==2{print \\\\$5\\\\\\\"|\\\\\\\"\\\\$3\\\\\\\"|\\\\\\\"\\\\$2}'; echo 'UPTIME:'; uptime -p 2>/dev/null || uptime; echo 'PROCS:'; ps aux | wc -l; echo 'CONNS:'; ss -an 2>/dev/null | grep -c ESTAB || netstat -an 2>/dev/null | grep -c ESTABLISHED; echo 'USERS:'; who -q 2>/dev/null | head -1 || echo 'N/A'\"`,\n    { encoding: 'utf8', timeout: 12000 }\n  );\n  \n  const lines = sysInfo.split('\\n');\n  let section = '';\n  \n  for (let line of lines) {\n    line = line.trim();\n    if (line.startsWith('CPU_LOAD:')) { section = 'cpu_load'; continue; }\n    if (line.startsWith('CPU_PCT:')) { section = 'cpu_pct'; continue; }\n    if (line.startsWith('MEM:')) { section = 'mem'; continue; }\n    if (line.startsWith('DISK:')) { section = 'disk'; continue; }\n    if (line.startsWith('UPTIME:')) { section = 'uptime'; continue; }\n    if (line.startsWith('PROCS:')) { section = 'procs'; continue; }\n    if (line.startsWith('CONNS:')) { section = 'conns'; continue; }\n    if (line.startsWith('USERS:')) { section = 'users'; continue; }\n    \n    if (section === 'cpu_load' && line) auditData.cpu_load = line;\n    if (section === 'cpu_pct' && line) auditData.cpu_pct = parseFloat(line) || 0;\n    if (section === 'mem' && line.includes('|')) {\n      const parts = line.split('|');\n      auditData.mem_total = parseInt(parts[0]) || 0;\n      auditData.mem_used = parseInt(parts[1]) || 0;\n      auditData.mem_free = parseInt(parts[2]) || 0;\n      auditData.mem_pct = parseFloat(parts[3]) || 0;\n    }\n    if (section === 'disk' && line.includes('|')) {\n      const parts = line.split('|');\n      auditData.disk_used_pct = parseInt(parts[0]) || 0;\n      auditData.disk_used = parts[1] || 'N/A';\n      auditData.disk_total = parts[2] || 'N/A';\n    }\n    if (section === 'uptime' && line) auditData.uptime = line;\n    if (section === 'procs' && line) auditData.process_count = parseInt(line) || 0;\n    if (section === 'conns' && line) auditData.active_connections = parseInt(line) || 0;\n    if (section === 'users' && line) auditData.logged_users = line;\n  }\n  \n} catch (e) {\n  auditData.ssh_connected = false;\n  auditData.errors.push('System info batch failed');\n}\n\n// Set defaults if missing\nauditData.cpu_load = auditData.cpu_load || 'N/A';\nauditData.cpu_pct = auditData.cpu_pct || 0;\nauditData.mem_total = auditData.mem_total || 0;\nauditData.mem_used = auditData.mem_used || 0;\nauditData.mem_free = auditData.mem_free || 0;\nauditData.mem_pct = auditData.mem_pct || 0;\nauditData.disk_used_pct = auditData.disk_used_pct || 0;\nauditData.disk_used = auditData.disk_used || 'N/A';\nauditData.disk_total = auditData.disk_total || 'N/A';\nauditData.uptime = auditData.uptime || 'N/A';\nauditData.process_count = auditData.process_count || 0;\nauditData.active_connections = auditData.active_connections || 0;\nauditData.logged_users = auditData.logged_users || 'N/A';\n\n// BATCH 2: Disk I/O (optional, can skip if needed)\ntry {\n  const diskIO = execSync(\n    `${sshBase} \"iostat -x 1 1 2>/dev/null | awk '/^[sv]d/ {print \\\\$1\\\\\\\"|\\\\\\\"\\\\$14}' | head -1 || echo 'N/A|0'\"`,\n    { encoding: 'utf8', timeout: 8000 }\n  );\n  const ioParts = diskIO.trim().split('|');\n  auditData.disk_name = ioParts[0] || 'unknown';\n  auditData.disk_util_pct = parseFloat(ioParts[1]) || 0;\n} catch (e) {\n  auditData.disk_name = 'unknown';\n  auditData.disk_util_pct = 0;\n}\n\n// BATCH 3: Service Status - Combined Check\ntry {\n  const serviceCheck = execSync(\n    `${sshBase} \"systemctl list-units --type=service --state=active,failed --no-pager --no-legend | grep -E 'php.*fpm|nginx|mariadb|mysql|postgresql|docker|containerd|supervisor|rabbitmq' | awk '{print \\\\$1\\\\\\\":\\\\\\\"\\\\$3}' || echo 'none'\"`,\n    { encoding: 'utf8', timeout: 8000 }\n  );\n  \n  const services = serviceCheck.trim().split('\\n').filter(s => s && s !== 'none');\n  auditData.service_status = services.length > 0 ? services.join(', ') : 'No critical services detected';\n} catch (e) {\n  auditData.service_status = 'Service check failed';\n}\n\n// BATCH 4: Journal Errors (optional - can be disabled for speed)\ntry {\n  const journalErrors = execSync(\n    `${sshBase} \"journalctl -q -p err -n ${cfg.max_error_lines || 10} --no-pager --since '${cfg.time_window_min || 30} minutes ago' 2>/dev/null | head -20 || echo ''\"`,\n    { encoding: 'utf8', timeout: 8000 }\n  );\n  auditData.journal_errors = journalErrors.trim() || 'No recent errors';\n} catch (e) {\n  auditData.journal_errors = 'Journal not available';\n}\n\nreturn { json: auditData };\n"
       },
-      "id": "linux-audit-001",
+      "id": "a8de5586-0014-4b95-8a01-e6f77fa7eb6c",
       "name": "Linux Audit",
       "type": "n8n-nodes-base.code",
       "position": [
-        680,
-        -250
+        -704,
+        160
       ],
-      "typeVersion": 2
+      "typeVersion": 2,
+      "retryOnFail": true,
+      "maxTries": 5,
+      "alwaysOutputData": true
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
         "jsCode": "// Windows Audit using PowerShell (Read-only, production-safe)\nconst { execSync } = require('child_process');\n\nconst d = $input.item.json;\nconst cfg = $('Config').first().json;\n\n// Using WinRM with basic authentication (requires proper configuration)\n// Note: In production, consider using certificate-based authentication\nconst winrmUser = d.user;\nconst winrmPass = d.pass;\nconst winrmHost = d.host;\nconst winrmPort = d.port;\n\nlet auditData = {\n  hostname: d.host,\n  os: 'windows',\n  distro: 'windows',\n  username: d.user,\n  audit_timestamp: d.audit_timestamp,\n  winrm_connected: true,\n  errors: []\n};\n\n// Helper function to execute WinRM commands via curl (simplified approach)\n// In production, consider using proper WinRM client libraries\nconst executePowerShell = (script) => {\n  try {\n    const encodedScript = Buffer.from(script).toString('base64');\n    const command = `curl -k -s -u \"${winrmUser}:${winrmPass}\" -H \"Content-Type: application/soap+xml\" -d \"<s:Envelope xmlns:s='http://www.w3.org/2003/05/soap-envelope'><s:Body><p:PowerShell xmlns:p='http://schemas.microsoft.com/wbem/wsman/1/windows/shell'><p:Command><p:CommandLine>${encodedScript}</p:CommandLine></p:Command></p:PowerShell></s:Body></s:Envelope>\" https://${winrmHost}:${winrmPort}/wsman 2>&1 || echo 'WINRM_ERROR'`;\n    \n    const result = execSync(command, { encoding: 'utf8', timeout: 20000 });\n    \n    if (result.includes('WINRM_ERROR') || result.includes('Access Denied')) {\n      throw new Error('WinRM authentication or connection failed');\n    }\n    \n    return result;\n  } catch (error) {\n    // Fallback: simulate data collection for demo\n    // In production, ensure WinRM is properly configured\n    return null;\n  }\n};\n\n// Try to execute PowerShell commands\ntry {\n  // CPU Usage\n  const cpuScript = `Get-WmiObject Win32_Processor | Measure-Object -Property LoadPercentage -Average | Select-Object -ExpandProperty Average`;\n  const cpuResult = executePowerShell(cpuScript);\n  auditData.cpu_pct = cpuResult ? parseFloat(cpuResult) || 0 : Math.floor(Math.random() * 30 + 10);\n  \n  // Memory Usage\n  const memScript = `Get-WmiObject Win32_OperatingSystem | Select-Object @{Name='MemoryUsage';Expression={[math]::Round((($_.TotalVisibleMemorySize - $_.FreePhysicalMemory)*100)/ $_.TotalVisibleMemorySize)}}`;\n  const memResult = executePowerShell(memScript);\n  auditData.mem_pct = memResult ? parseFloat(memResult.match(/\\d+/)?.[0]) || 0 : Math.floor(Math.random() * 40 + 30);\n  \n  // Disk Usage\n  const diskScript = `Get-WmiObject Win32_LogicalDisk -Filter \"DeviceID='C:'\" | Select-Object DeviceID, @{Name='UsedPct';Expression={[math]::Round((($_.Size - $_.FreeSpace)*100)/ $_.Size)}}`;\n  const diskResult = executePowerShell(diskScript);\n  auditData.disk_used_pct = diskResult ? parseInt(diskResult.match(/\\d+/)?.[0]) || 0 : Math.floor(Math.random() * 30 + 40);\n  \n  // System Uptime\n  const uptimeScript = `Get-WmiObject Win32_OperatingSystem | Select-Object @{Name='Uptime';Expression={(Get-Date) - $_.ConvertToDateTime($_.LastBootUpTime)}}`;\n  const uptimeResult = executePowerShell(uptimeScript);\n  auditData.uptime = uptimeResult || 'Unknown';\n  \n  // Service Status (key services)\n  const serviceScript = `Get-Service | Where-Object {$_.Status -eq 'Stopped' -and $_.StartType -eq 'Automatic'} | Select-Object Name, Status | ConvertTo-Json`;\n  const serviceResult = executePowerShell(serviceScript);\n  auditData.stopped_services = serviceResult || 'None';\n  \n  // Event Log Errors\n  const eventScript = `Get-EventLog -LogName System -EntryType Error -Newest ${cfg.max_error_lines} -After (Get-Date).AddMinutes(-${cfg.time_window_min}) | Select-Object TimeGenerated, Source, Message | ConvertTo-Json`;\n  const eventResult = executePowerShell(eventScript);\n  auditData.event_errors = eventResult || 'No recent errors';\n  \n  // Running Processes\n  const procScript = `(Get-Process).Count`;\n  const procResult = executePowerShell(procScript);\n  auditData.process_count = procResult ? parseInt(procResult) || 0 : Math.floor(Math.random() * 100 + 50);\n  \n} catch (error) {\n  // If WinRM fails, use simulated data for demonstration\n  // In production, ensure WinRM is properly configured on Windows servers\n  auditData.winrm_connected = false;\n  auditData.errors.push('WinRM not properly configured - using simulated data for demo');\n  \n  // Simulated data for demonstration (remove in production with proper WinRM)\n  auditData.cpu_pct = Math.floor(Math.random() * 30 + 10);\n  auditData.mem_pct = Math.floor(Math.random() * 40 + 30);\n  auditData.disk_used_pct = Math.floor(Math.random() * 30 + 40);\n  auditData.process_count = Math.floor(Math.random() * 100 + 50);\n  auditData.uptime = 'Unknown (WinRM not configured)';\n  auditData.stopped_services = 'Unknown (WinRM not configured)';\n  auditData.event_errors = 'Unknown (WinRM not configured)';\n}\n\nreturn { json: auditData };"
       },
-      "id": "windows-audit-001",
+      "id": "71c36227-9831-4645-a76d-b0c2bccbd0d7",
       "name": "Windows Audit",
       "type": "n8n-nodes-base.code",
       "position": [
-        680,
-        50
+        -720,
+        464
       ],
       "typeVersion": 2
     },
@@ -279,26 +282,26 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// Handle connection errors\nconst d = $input.item.json;\n\nreturn {\n  json: {\n    hostname: d.host,\n    username: d.user,\n    os: 'unknown',\n    audit_timestamp: new Date().toISOString(),\n    connected: false,\n    error: d.error || 'Connection failed',\n    cpu_pct: 0,\n    mem_pct: 0,\n    disk_used_pct: 0,\n    disk_util_pct: 0,\n    process_count: 0,\n    uptime: 'N/A',\n    errors: [d.error || 'Unknown error']\n  }\n};"
       },
-      "id": "error-handler-001",
+      "id": "b3ae426a-43ea-4801-ae23-449153d92afc",
       "name": "Handle Error",
       "type": "n8n-nodes-base.code",
       "position": [
-        680,
-        200
+        -720,
+        608
       ],
       "typeVersion": 2
     },
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Merge all audit results and analyze for critical issues\nconst cfg = $('Config').first().json;\nconst d = $input.item.json || {};\n\nconst isLinux = d.os === 'linux';\nconst isWindows = d.os === 'windows';\n\nconst cpuUsage = Number(d.cpu_pct ?? 0);\nconst memUsage = Number(d.mem_pct ?? 0);\nconst diskUsedPct = Number(d.disk_used_pct ?? 0);\nconst diskUtilPct = Number(d.disk_util_pct ?? 0);\n\n// Determine critical thresholds\nconst cpuCritical = cpuUsage >= cfg.cpu_critical_pct;\nconst memCritical = memUsage >= cfg.mem_critical_pct;\nconst diskCritical = (diskUsedPct >= cfg.disk_critical_pct) || (isLinux && diskUtilPct >= cfg.disk_critical_pct);\nconst connFailed = !d.ssh_connected && !d.winrm_connected;\n\n// Check for error patterns\nlet hasJournalErrors = false;\nlet hasEventErrors = false;\n\nif (isLinux && d.journal_errors) {\n  hasJournalErrors = /error|fail|panic|oom|segfault|critical|exception/i.test(d.journal_errors) && d.journal_errors.trim().length > 20;\n}\n\nif (isWindows && d.event_errors) {\n  hasEventErrors = /Error/i.test(d.event_errors) && d.event_errors.length > 20;\n}\n\n// Check service issues\nlet hasServiceIssues = false;\nif (isLinux && d.service_status) {\n  hasServiceIssues = d.service_status.includes('inactive') || d.service_status.includes('failed');\n}\nif (isWindows && d.stopped_services) {\n  hasServiceIssues = !d.stopped_services.includes('None') && !d.stopped_services.includes('Unknown');\n}\n\n// Overall critical status\nconst hasCritical = connFailed || cpuCritical || memCritical || diskCritical || hasJournalErrors || hasEventErrors || hasServiceIssues;\n\n// Build report\nconst osLabel = isLinux ? '[LINUX]' : isWindows ? '[WINDOWS]' : '[UNKNOWN]';\nconst distroInfo = d.distro || 'unknown';\n\nconst report = [];\nreport.push(`${osLabel} *SERVER: ${d.hostname || 'unknown'}*`);\nreport.push(`OS: ${(d.os || 'unknown').toUpperCase()} (${distroInfo})`);\nreport.push(`User: ${d.username || 'N/A'}`);\nreport.push(`Time: ${new Date().toLocaleString('en-US', { timeZone: 'UTC' })}`);\nreport.push('');\n\n// Connection Status\nif (connFailed) {\n  report.push('*CONNECTION FAILED*');\n  report.push(`Error: ${d.error || 'Unknown error'}`);\n} else {\n  report.push('Connected');\n}\nreport.push('');\n\n// CPU\nreport.push('--- CPU ---');\nif (isLinux) {\n  report.push(`Load: ${d.cpu_load || 'N/A'}`);\n}\nreport.push(`Usage: ${cpuUsage.toFixed(1)}% ${cpuCritical ? 'CRITICAL' : 'OK'}`);\nreport.push('');\n\n// Memory\nreport.push('--- MEMORY ---');\nif (isLinux) {\n  report.push(`Total: ${d.mem_total}MB | Used: ${d.mem_used}MB | Free: ${d.mem_free}MB`);\n}\nreport.push(`Usage: ${memUsage.toFixed(1)}% ${memCritical ? 'CRITICAL' : 'OK'}`);\nreport.push('');\n\n// Disk\nreport.push('--- DISK ---');\nif (isLinux) {\n  report.push(`Used: ${d.disk_used}/${d.disk_total} (${diskUsedPct.toFixed(1)}%)`);\n  report.push(`I/O: ${d.disk_name || 'disk'} - ${diskUtilPct.toFixed(1)}% ${diskCritical ? 'CRITICAL' : 'OK'}`);\n} else {\n  report.push(`Usage: ${diskUsedPct.toFixed(1)}% ${diskCritical ? 'CRITICAL' : 'OK'}`);\n}\nreport.push('');\n\n// Processes & Uptime\nreport.push('--- SYSTEM ---');\nreport.push(`Processes: ${d.process_count || 0}`);\nreport.push(`Uptime: ${d.uptime || 'N/A'}`);\nif (isLinux) {\n  report.push(`Active Connections: ${d.active_connections || 0}`);\n  report.push(`Logged Users: ${d.logged_users || 'N/A'}`);\n}\nreport.push('');\n\n// Errors\nif (isLinux && hasJournalErrors) {\n  report.push('--- JOURNAL ERRORS ---');\n  report.push('ERRORS DETECTED:');\n  report.push(d.journal_errors.substring(0, 300));\n  report.push('');\n}\n\nif (isWindows && hasEventErrors) {\n  report.push('--- EVENT ERRORS ---');\n  report.push('ERRORS DETECTED:');\n  report.push(d.event_errors.substring(0, 300));\n  report.push('');\n}\n\n// Services\nif (hasServiceIssues) {\n  report.push('--- SERVICES ---');\n  report.push('SERVICE ISSUES:');\n  if (isLinux) {\n    report.push(d.service_status.substring(0, 200));\n  } else {\n    report.push(d.stopped_services.substring(0, 200));\n  }\n  report.push('');\n}\n\nreturn {\n  json: {\n    hostname: d.hostname,\n    os: d.os,\n    distro: d.distro,\n    username: d.username,\n    report: report.join('\n'),\n    audit_data: d,\n    conn_failed: connFailed,\n    cpu_critical: cpuCritical,\n    mem_critical: memCritical,\n    disk_critical: diskCritical,\n    has_journal_errors: hasJournalErrors,\n    has_event_errors: hasEventErrors,\n    has_service_issues: hasServiceIssues,\n    has_critical: hasCritical,\n    cpu_pct: cpuUsage,\n    mem_pct: memUsage,\n    disk_used_pct: diskUsedPct,\n    disk_util_pct: diskUtilPct,\n  },\n};\n"
+        "jsCode": "// Merge all audit results and analyze for critical issues\nconst cfg = $('Config').first().json;\nconst d = $input.item.json || {};\n\nconst isLinux = d.os === 'linux';\nconst isWindows = d.os === 'windows';\n\nconst cpuUsage = Number(d.cpu_pct ?? 0);\nconst memUsage = Number(d.mem_pct ?? 0);\nconst diskUsedPct = Number(d.disk_used_pct ?? 0);\nconst diskUtilPct = Number(d.disk_util_pct ?? 0);\n\n// Determine critical thresholds\nconst cpuCritical = cpuUsage >= cfg.cpu_critical_pct;\nconst memCritical = memUsage >= cfg.mem_critical_pct;\nconst diskCritical = (diskUsedPct >= cfg.disk_critical_pct) || (isLinux && diskUtilPct >= cfg.disk_critical_pct);\nconst connFailed = !d.ssh_connected && !d.winrm_connected;\n\n// Check for error patterns\nlet hasJournalErrors = false;\nlet hasEventErrors = false;\n\nif (isLinux && d.journal_errors) {\n  hasJournalErrors = /error|fail|panic|oom|segfault|critical|exception/i.test(d.journal_errors) && \n                     d.journal_errors.trim().length > 20 &&\n                     d.journal_errors !== 'No recent errors' &&\n                     d.journal_errors !== 'Journal not available';\n}\n\nif (isWindows && d.event_errors) {\n  hasEventErrors = /Error/i.test(d.event_errors) && d.event_errors.length > 20;\n}\n\n// Check service issues - Enhanced Detection\nlet hasServiceIssues = false;\nif (isLinux && d.service_status) {\n  const statusLower = d.service_status.toLowerCase();\n  \n  // Skip if service check failed entirely\n  if (statusLower === 'service check failed' || \n      statusLower === 'no critical services detected') {\n    hasServiceIssues = false;\n  } else {\n    // Check for problematic service states (inactive, failed, dead, error)\n    hasServiceIssues = /:(failed|inactive|dead|error|exited)/i.test(d.service_status);\n  }\n}\n\nif (isWindows && d.stopped_services) {\n  hasServiceIssues = !d.stopped_services.includes('None') && \n                     !d.stopped_services.includes('Unknown');\n}\n\n// Overall critical status\nconst hasCritical = connFailed || cpuCritical || memCritical || diskCritical || hasJournalErrors || hasEventErrors || hasServiceIssues;\n\n// Build report\nconst osLabel = isLinux ? '[LINUX]' : isWindows ? '[WINDOWS]' : '[UNKNOWN]';\nconst distroInfo = d.distro || 'unknown';\n\nconst report = [];\nreport.push(`${osLabel} *SERVER: ${d.hostname || 'unknown'}*`);\nreport.push(`OS: ${(d.os || 'unknown').toUpperCase()} (${distroInfo})`);\nreport.push(`User: ${d.username || 'N/A'}`);\nreport.push(`Time: ${new Date().toLocaleString('en-US', { timeZone: 'UTC' })}`);\nreport.push('');\n\n// Connection Status\nif (connFailed) {\n  report.push('*CONNECTION FAILED*');\n  report.push(`Error: ${d.errors ? d.errors.join(', ') : 'Unknown error'}`);\n} else {\n  report.push('✓ Connected');\n}\nreport.push('');\n\n// CPU\nreport.push('--- CPU ---');\nif (isLinux) {\n  report.push(`Load: ${d.cpu_load || 'N/A'}`);\n}\nreport.push(`Usage: ${cpuUsage.toFixed(1)}% ${cpuCritical ? '⚠ CRITICAL' : '✓ OK'}`);\nreport.push('');\n\n// Memory\nreport.push('--- MEMORY ---');\nif (isLinux) {\n  report.push(`Total: ${d.mem_total}MB | Used: ${d.mem_used}MB | Free: ${d.mem_free}MB`);\n}\nreport.push(`Usage: ${memUsage.toFixed(1)}% ${memCritical ? '⚠ CRITICAL' : '✓ OK'}`);\nreport.push('');\n\n// Disk\nreport.push('--- DISK ---');\nif (isLinux) {\n  report.push(`Used: ${d.disk_used}/${d.disk_total} (${diskUsedPct.toFixed(1)}%)`);\n  report.push(`I/O: ${d.disk_name || 'disk'} - ${diskUtilPct.toFixed(1)}% ${diskCritical ? '⚠ CRITICAL' : '✓ OK'}`);\n} else {\n  report.push(`Usage: ${diskUsedPct.toFixed(1)}% ${diskCritical ? '⚠ CRITICAL' : '✓ OK'}`);\n}\nreport.push('');\n\n// Processes & Uptime\nreport.push('--- SYSTEM ---');\nreport.push(`Processes: ${d.process_count || 0}`);\nreport.push(`Uptime: ${d.uptime || 'N/A'}`);\nif (isLinux) {\n  report.push(`Active Connections: ${d.active_connections || 0}`);\n  report.push(`Logged Users: ${d.logged_users || 'N/A'}`);\n}\nreport.push('');\n\n// Errors\nif (isLinux && hasJournalErrors) {\n  report.push('--- JOURNAL ERRORS ---');\n  report.push('⚠ ERRORS DETECTED:');\n  report.push(d.journal_errors.substring(0, 300));\n  report.push('');\n}\n\nif (isWindows && hasEventErrors) {\n  report.push('--- EVENT ERRORS ---');\n  report.push('⚠ ERRORS DETECTED:');\n  report.push(d.event_errors.substring(0, 300));\n  report.push('');\n}\n\n// Services\nif (hasServiceIssues) {\n  report.push('--- SERVICES ---');\n  report.push('⚠ SERVICE ISSUES DETECTED:');\n  if (isLinux) {\n    report.push(d.service_status.substring(0, 400));\n  } else {\n    report.push(d.stopped_services.substring(0, 200));\n  }\n  report.push('');\n}\n\nreturn {\n  json: {\n    hostname: d.hostname,\n    os: d.os,\n    distro: d.distro,\n    username: d.username,\n    report: report.join('\\n'),\n    audit_data: d,\n    conn_failed: connFailed,\n    cpu_critical: cpuCritical,\n    mem_critical: memCritical,\n    disk_critical: diskCritical,\n    has_journal_errors: hasJournalErrors,\n    has_event_errors: hasEventErrors,\n    has_service_issues: hasServiceIssues,\n    has_critical: hasCritical,\n    cpu_pct: cpuUsage,\n    mem_pct: memUsage,\n    disk_used_pct: diskUsedPct,\n    disk_util_pct: diskUtilPct,\n  },\n};\n"
       },
-      "id": "analyze-results-001",
+      "id": "d4074d3e-12af-4838-baac-38f616e95198",
       "name": "Analyze Results",
       "type": "n8n-nodes-base.code",
       "position": [
-        880,
-        -100
+        -496,
+        416
       ],
       "typeVersion": 2
     },
@@ -356,26 +359,25 @@
         },
         "options": {}
       },
-      "id": "status-router-001",
+      "id": "3755747b-7440-40b9-be14-31bc479da9af",
       "name": "Status Router",
       "type": "n8n-nodes-base.switch",
       "position": [
-        1080,
-        -100
+        -320,
+        304
       ],
       "typeVersion": 3
     },
     {
       "parameters": {
-        "mode": "runOnceForEachItem",
-        "jsCode": "// Batch critical servers for AI analysis\nconst items = $input.all();\n\nif (items.length === 0) {\n  return [];\n}\n\n// Add delay to prevent rate limiting\nconst delay = ms => new Promise(resolve => setTimeout(resolve, ms));\nawait delay(2000);\n\nconst servers = items.map(item => ({\n  hostname: item.json.hostname,\n  os: item.json.os,\n  distro: item.json.distro,\n  username: item.json.username,\n  conn_failed: item.json.conn_failed,\n  cpu_critical: item.json.cpu_critical,\n  mem_critical: item.json.mem_critical,\n  disk_critical: item.json.disk_critical,\n  has_journal_errors: item.json.has_journal_errors,\n  has_event_errors: item.json.has_event_errors,\n  has_service_issues: item.json.has_service_issues,\n  cpu_pct: item.json.cpu_pct,\n  mem_pct: item.json.mem_pct,\n  disk_used_pct: item.json.disk_used_pct,\n  disk_util_pct: item.json.disk_util_pct,\n  report: item.json.report\n}));\n\n// Create summary\nconst summary = servers.map(s => {\n  const issues = [];\n  if (s.conn_failed) issues.push('CONN_FAIL');\n  if (s.cpu_critical) issues.push(`CPU:${s.cpu_pct.toFixed(1)}%`);\n  if (s.mem_critical) issues.push(`MEM:${s.mem_pct.toFixed(1)}%`);\n  if (s.disk_critical) issues.push(`DISK:${s.disk_used_pct.toFixed(1)}%`);\n  if (s.has_journal_errors || s.has_event_errors) issues.push('LOG_ERRORS');\n  if (s.has_service_issues) issues.push('SVC_ISSUES');\n  const osIcon = s.os === 'linux' ? '\ud83d\udc27' : s.os === 'windows' ? '\ud83e\ude9f' : '\u2753';\n  return `${osIcon} ${s.hostname} (${s.os}): ${issues.join(', ')}`;\n}).join('\\n');\n\n// Detailed reports (truncated)\nconst detailedReports = servers.map(s => \n  s.report.substring(0, 600)\n).join('\\n\\n---\\n\\n');\n\nconst batchReport = `\ud83d\udea8 *CRITICAL SERVERS DETECTED*\\n\\n${servers.length} server(s) with critical issues:\\n\\n${summary}\\n\\n---DETAILED AUDIT REPORTS---\\n\\n${detailedReports}`;\n\nreturn [{\n  json: {\n    batch_report: batchReport,\n    server_count: servers.length,\n    servers: servers,\n    timestamp: new Date().toISOString()\n  }\n}];"
+        "jsCode": "// Batch critical servers for AI analysis\nconst items = $input.all();\n\nif (items.length === 0) {\n  return [];\n}\n\n// Add delay to prevent rate limiting\nconst delay = ms => new Promise(resolve => setTimeout(resolve, ms));\nawait delay(2000);\n\nconst servers = items.map(item => ({\n  hostname: item.json.hostname,\n  os: item.json.os,\n  distro: item.json.distro,\n  username: item.json.username,\n  conn_failed: item.json.conn_failed,\n  cpu_critical: item.json.cpu_critical,\n  mem_critical: item.json.mem_critical,\n  disk_critical: item.json.disk_critical,\n  has_journal_errors: item.json.has_journal_errors,\n  has_event_errors: item.json.has_event_errors,\n  has_service_issues: item.json.has_service_issues,\n  cpu_pct: item.json.cpu_pct,\n  mem_pct: item.json.mem_pct,\n  disk_used_pct: item.json.disk_used_pct,\n  disk_util_pct: item.json.disk_util_pct,\n  report: item.json.report\n}));\n\n// Create summary\nconst summary = servers.map(s => {\n  const issues = [];\n  if (s.conn_failed) issues.push('CONN_FAIL');\n  if (s.cpu_critical) issues.push(`CPU:${s.cpu_pct.toFixed(1)}%`);\n  if (s.mem_critical) issues.push(`MEM:${s.mem_pct.toFixed(1)}%`);\n  if (s.disk_critical) issues.push(`DISK:${s.disk_used_pct.toFixed(1)}%`);\n  if (s.has_journal_errors || s.has_event_errors) issues.push('LOG_ERRORS');\n  if (s.has_service_issues) issues.push('SVC_ISSUES');\n  const osIcon = s.os === 'linux' ? '🐧' : s.os === 'windows' ? '🪟' : '❓';\n  return `${osIcon} ${s.hostname} (${s.os}): ${issues.join(', ')}`;\n}).join('\\n');\n\n// Detailed reports (truncated)\nconst detailedReports = servers.map(s => \n  s.report.substring(0, 600)\n).join('\\n\\n---\\n\\n');\n\nconst batchReport = `🚨 *CRITICAL SERVERS DETECTED*\\n\\n${servers.length} server(s) with critical issues:\\n\\n${summary}\\n\\n---DETAILED AUDIT REPORTS---\\n\\n${detailedReports}`;\n\nreturn [{\n  json: {\n    batch_report: batchReport,\n    server_count: servers.length,\n    servers: servers,\n    timestamp: new Date().toISOString()\n  }\n}];"
       },
-      "id": "batch-critical-001",
+      "id": "384f0389-a756-4a01-84d1-e28b326e5417",
       "name": "Batch Critical Servers",
       "type": "n8n-nodes-base.code",
       "position": [
-        1280,
-        -200
+        -128,
+        208
       ],
       "typeVersion": 2
     },
@@ -383,7 +385,6 @@
       "parameters": {
         "promptType": "define",
         "text": "={{ $json.batch_report }}\n\nYou are an expert system administrator and DevOps engineer. Analyze the server audit reports above and provide:\n\n1. **Root Cause Analysis** (2-3 bullets)\n   - Identify the primary issues causing alerts\n   - Determine if issues are related or independent\n\n2. **Immediate Actions** (bash/PowerShell commands)\n   - Provide specific, safe commands to diagnose and fix issues\n   - Ensure all commands are read-only or safe for production\n   - Include exact commands for both Linux and Windows if applicable\n\n3. **Prevention Measures** (1-2 bullets)\n   - Recommend monitoring or configuration improvements\n   - Suggest proactive measures to prevent recurrence\n\nFormat the response in Telegram Markdown style. Keep it under 400 words. Use emojis for clarity.\n",
-        "hasOutputParser": false,
         "options": {
           "systemMessage": "You are an expert DevOps engineer analyzing server audit data. Provide concise, actionable recommendations in Telegram Markdown format. Ensure all commands are safe for production environments."
         }
@@ -391,53 +392,30 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.3,
       "position": [
-        1500,
-        -200
+        112,
+        432
       ],
-      "id": "ai-agent-001",
+      "id": "c6259289-46bb-49ad-afa2-f3ba0d05a9e1",
       "name": "AI Agent Analysis"
     },
     {
       "parameters": {
-        "modelName": "models/gemini-2.0-flash-exp",
-        "options": {
-          "maxOutputTokens": 512,
-          "temperature": 0.3
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
-      "typeVersion": 1,
-      "position": [
-        1480,
-        0
-      ],
-      "id": "gemini-model-001",
-      "name": "Gemini Model",
-      "credentials": {
-        "googlePalmApi": {
-          "id": "YOUR_GOOGLE_CREDENTIALS_ID",
-          "name": "Google Gemini API"
-        }
-      }
-    },
-    {
-      "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "// Prepare individual Telegram messages for each critical server\nconst aiResponse = $json.output || $json.text || $json.response || 'AI analysis unavailable';\nconst servers = $('Batch Critical Servers').first().json.servers;\n\nreturn servers.map(server => {\n  const osIcon = server.os === 'linux' ? '\ud83d\udc27' : server.os === 'windows' ? '\ud83e\ude9f' : '\u2753';\n  \n  // Build issue indicators\n  let issues = [];\n  if (server.conn_failed) issues.push('\u26a0\ufe0f CONNECTION FAILED');\n  if (server.cpu_critical) issues.push(`\ud83d\udd34 CPU: ${server.cpu_pct.toFixed(1)}%`);\n  if (server.mem_critical) issues.push(`\ud83d\udd34 Memory: ${server.mem_pct.toFixed(1)}%`);\n  if (server.disk_critical) issues.push(`\ud83d\udd34 Disk: ${server.disk_used_pct.toFixed(1)}%`);\n  if (server.has_journal_errors || server.has_event_errors) issues.push('\ud83d\udd34 Log Errors');\n  if (server.has_service_issues) issues.push('\ud83d\udd34 Service Issues');\n  \n  const issueSummary = issues.length > 0 ? issues.join('\\n') : 'No specific issues';\n  \n  return {\n    json: {\n      message: `\ud83d\udea8 *CRITICAL ALERT*\\n\\n${osIcon} *Server:* ${server.hostname}\\n*OS:* ${server.os.toUpperCase()} (${server.distro})\\n*User:* ${server.username}\\n\\n*Issues Detected:*\\n${issueSummary}\\n\\n---\\n\\n*AI Analysis & Recommendations:*\\n\\n${aiResponse}\\n\\n---\\n\\n\ud83d\udd50 ${new Date().toISOString()}\\n_Multi-Server Audit Workflow_`,\n      hostname: server.hostname,\n      os: server.os,\n      chat_id: $('Config').first().json.telegram_chat_id\n    }\n  };\n});"
+        "jsCode": "// Prepare individual Telegram messages for each critical server\nconst aiResponse = $json.output || $json.text || $json.response || 'AI analysis unavailable';\nconst servers = $('Batch Critical Servers').first().json.servers;\n\nreturn servers.map(server => {\n  const osIcon = server.os === 'linux' ? '🐧' : server.os === 'windows' ? '🪟' : '❓';\n  \n  // Build issue indicators\n  let issues = [];\n  if (server.conn_failed) issues.push('⚠️ CONNECTION FAILED');\n  if (server.cpu_critical) issues.push(`🔴 CPU: ${server.cpu_pct.toFixed(1)}%`);\n  if (server.mem_critical) issues.push(`🔴 Memory: ${server.mem_pct.toFixed(1)}%`);\n  if (server.disk_critical) issues.push(`🔴 Disk: ${server.disk_used_pct.toFixed(1)}%`);\n  if (server.has_journal_errors || server.has_event_errors) issues.push('🔴 Log Errors');\n  if (server.has_service_issues) issues.push('🔴 Service Issues');\n  \n  const issueSummary = issues.length > 0 ? issues.join('\\n') : 'No specific issues';\n  \n  return {\n    json: {\n      message: `🚨 *CRITICAL ALERT*\\n\\n${osIcon} *Server:* ${server.hostname}\\n*OS:* ${server.os.toUpperCase()} (${server.distro})\\n*User:* ${server.username}\\n\\n*Issues Detected:*\\n${issueSummary}\\n\\n---\\n\\n*AI Analysis & Recommendations:*\\n\\n${aiResponse}\\n\\n---\\n\\n🕐 ${new Date().toISOString()}\\n_Multi-Server Audit Workflow_`,\n      hostname: server.hostname,\n      os: server.os,\n      chat_id: $('Config').first().json.telegram_chat_id\n    }\n  };\n});"
       },
-      "id": "prepare-telegram-001",
+      "id": "55b81d5b-94e5-4930-bd9d-1938f6e589eb",
       "name": "Prepare Telegram",
       "type": "n8n-nodes-base.code",
       "position": [
-        1720,
-        -50
+        432,
+        432
       ],
       "typeVersion": 2
     },
     {
       "parameters": {
-        "chatId": "={{ $json.chat_id }}",
-        "text": "={{ $json.message }}",
+        "chatId": "=-1002680493260",
+        "text": "={{ $json.batch_report }}",
         "additionalFields": {
           "disable_web_page_preview": true,
           "parse_mode": "Markdown"
@@ -446,16 +424,16 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1920,
-        -100
+        688,
+        272
       ],
-      "id": "send-telegram-001",
+      "id": "89122a96-ace8-4e50-995a-4c3746e1af0f",
       "name": "Send Telegram Alert",
       "webhookId": "telegram-webhook-001",
       "credentials": {
         "telegramApi": {
-          "id": "YOUR_TELEGRAM_CREDENTIALS_ID",
-          "name": "Telegram Bot"
+          "id": "GosjRfg6QdcOTMT5",
+          "name": "Telegram account"
         }
       }
     },
@@ -464,89 +442,109 @@
         "mode": "runOnceForEachItem",
         "jsCode": "// Optional: Log successful audits for compliance/history\nconst d = $input.item.json;\n\nconsole.log(`[${new Date().toISOString()}] Audit OK: ${d.hostname} (${d.os}) - CPU: ${d.cpu_pct}%, MEM: ${d.mem_pct}%, Disk: ${d.disk_used_pct}%`);\n\nreturn {\n  json: {\n    hostname: d.hostname,\n    os: d.os,\n    status: 'OK',\n    cpu_pct: d.cpu_pct,\n    mem_pct: d.mem_pct,\n    disk_used_pct: d.disk_used_pct,\n    timestamp: new Date().toISOString(),\n    logged: true\n  }\n};"
       },
-      "id": "log-ok-001",
+      "id": "5ad3c322-e02b-4fd7-8540-b5124f596d55",
       "name": "Log OK Servers",
       "type": "n8n-nodes-base.code",
       "position": [
-        1280,
-        50
+        -128,
+        464
       ],
       "typeVersion": 2
     },
     {
       "parameters": {
-        "content": "## \u2699\ufe0f CONFIGURATION\n\nEdit the **Config** node to add:\n- Server list with credentials\n- Threshold values for alerts\n- Telegram Chat ID\n- Time windows for log analysis\n\nFormat:\n`host|username|password|os_type|port|protocol`\n\n- `os_type`: auto, linux, windows\n- `protocol`: ssh, winrm\n\n---\n\n**Author / Maintainer**\nAbubakkar Khan Fazla Rabbi\nSystem Enngineer | Ethical Hacker",
+        "content": "## ⚙️ CONFIGURATION\n\nEdit the **Config** node to add:\n- Server list with credentials\n- Threshold values for alerts\n- Telegram Chat ID\n- Time windows for log analysis\n\nFormat:\n`host|username|password|os_type|port|protocol`\n\n- `os_type`: auto, linux, windows\n- `protocol`: ssh, winrm\n\n---\n\n**Author / Maintainer**\nAbubakkar Khan Fazla Rabbi\nSystem Enngineer | Ethical Hacker",
         "height": 320,
         "width": 320
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        -640,
-        -360
+        -2016,
+        32
       ],
       "typeVersion": 1,
-      "id": "note-config-001",
+      "id": "ff3abd4c-9a4e-4041-b65c-2345842da1a1",
       "name": "Config Note"
     },
     {
       "parameters": {
-        "content": "## \ud83d\udd10 SECURITY NOTES\n\n1. **Credentials**: Store securely in N8n credentials manager\n2. **SSH**: Use key-based auth instead of passwords in production\n3. **WinRM**: Enable HTTPS with certificate auth for Windows\n4. **No harmful commands**: All audit commands are read-only\n5. **Rate limiting**: Workflow includes delays to prevent overload",
+        "content": "## 🔐 SECURITY NOTES\n\n1. **Credentials**: Store securely in N8n credentials manager\n2. **SSH**: Use key-based auth instead of passwords in production\n3. **WinRM**: Enable HTTPS with certificate auth for Windows\n4. **No harmful commands**: All audit commands are read-only\n5. **Rate limiting**: Workflow includes delays to prevent overload",
         "height": 280,
         "width": 320
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        900,
-        -380
+        -496,
+        32
       ],
       "typeVersion": 1,
-      "id": "note-security-001",
+      "id": "e502a28e-599e-4a2a-ac2c-3f8abad7f437",
       "name": "Security Note"
     },
     {
       "parameters": {
-        "content": "## \ud83e\udd16 AI ANALYSIS\n\nThe AI Agent node analyzes:\n- Root cause identification\n- Provides safe remediation commands\n- Suggests prevention measures\n\nSupported Models:\n- Google Gemini (default)\n- OpenAI GPT-4\n- Anthropic Claude\n\nConfigure in the **Gemini Model** node",
-        "height": 280,
-        "width": 320
+        "content": "## 🤖 AI ANALYSIS\n\nThe AI Agent node analyzes:\n- Root cause identification\n- Provides safe remediation commands\n- Suggests prevention measures\n\nSupported Models:\n- Google  (default)\n- OpenAI GPT-4\n- Anthropic Claude\n\nConfigure in the **Gemini Model** node",
+        "height": 456,
+        "width": 544
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        1400,
-        -400
+        48,
+        112
       ],
       "typeVersion": 1,
-      "id": "note-ai-001",
+      "id": "b3fed11a-aeb5-4883-9a88-46d5c0bfde86",
       "name": "AI Note"
     },
     {
       "parameters": {
-        "content": "## \ud83d\udcf1 TELEGRAM ALERTS\n\nCritical alerts sent to Telegram with:\n- Server details (OS, hostname, user)\n- Issue summary\n- AI recommendations\n- Safe remediation commands\n\nSetup:\n1. Create Telegram bot via @BotFather\n2. Get API token\n3. Add credentials to N8n\n4. Set chat_id in Config node",
-        "height": 280,
+        "content": "## 📱 TELEGRAM ALERTS\n\nCritical alerts sent to Telegram with:\n- Server details (OS, hostname, user)\n- Issue summary\n- AI recommendations\n- Safe remediation commands\n\nSetup:\n1. Create Telegram bot via @BotFather\n2. Get API token\n3. Add credentials to N8n\n4. Set chat_id in Config node",
+        "height": 488,
         "width": 320
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        1820,
-        -320
+        624,
+        -48
       ],
       "typeVersion": 1,
-      "id": "note-telegram-001",
+      "id": "6dd1edf0-dda6-4080-b872-d0a6f742df70",
       "name": "Telegram Note"
     },
     {
       "parameters": {
-        "content": "## \ud83d\udd0d AUDIT METRICS\n\n**Linux Servers:**\n- CPU load average\n- Memory usage\n- Disk space & I/O\n- Journal errors\n- Service status\n- Network connections\n- Logged users\n\n**Windows Servers:**\n- CPU usage %\n- Memory usage %\n- Disk usage %\n- Event log errors\n- Stopped services\n- Process count\n- System uptime",
+        "content": "## 🔍 AUDIT METRICS\n\n**Linux Servers:**\n- CPU load average\n- Memory usage\n- Disk space & I/O\n- Journal errors\n- Service status\n- Network connections\n- Logged users\n\n**Windows Servers:**\n- CPU usage %\n- Memory usage %\n- Disk usage %\n- Event log errors\n- Stopped services\n- Process count\n- System uptime",
         "height": 280,
         "width": 320
       },
       "type": "n8n-nodes-base.stickyNote",
       "position": [
-        560,
-        -380
+        -912,
+        -32
       ],
       "typeVersion": 1,
-      "id": "note-metrics-001",
+      "id": "3bf26a1d-82c6-4d48-a3e1-95f32d2d2036",
       "name": "Metrics Note"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash-exp",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        64,
+        736
+      ],
+      "id": "a46595dc-eeef-4cc2-bd44-a982cf2ef1fe",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "TSpuruTUvIP7hgVu",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -711,6 +709,11 @@
             "node": "AI Agent Analysis",
             "type": "main",
             "index": 0
+          },
+          {
+            "node": "Send Telegram Alert",
+            "type": "main",
+            "index": 0
           }
         ]
       ]
@@ -726,17 +729,6 @@
         ]
       ]
     },
-    "Gemini Model": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "AI Agent Analysis",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Prepare Telegram": {
       "main": [
         [
@@ -747,33 +739,41 @@
           }
         ]
       ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Analysis",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
-    "executionOrder": "v1",
-    "saveManualExecutions": true,
-    "callerPolicy": "workflowsFromSameOwner",
-    "errorWorkflow": ""
+    "executionOrder": "v1"
   },
+  "versionId": "6ea9e969-da27-454a-b4af-288406e3e2ae",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8638a8f0cf19031ea2ec16e17af17d908e23cbba398a13d2ae6e0db10663a6eb"
+  },
+  "id": "l7In3ScFdpRfUDV0",
   "tags": [
     {
-      "name": "Monitoring",
-      "createdAt": "2024-01-01T00:00:00.000Z",
-      "updatedAt": "2024-01-01T00:00:00.000Z",
-      "id": "tag-monitoring-001"
+      "updatedAt": "2026-01-04T10:26:54.467Z",
+      "createdAt": "2026-01-04T10:26:54.467Z",
+      "id": "VYT5lvoRz73QYJGa",
+      "name": "Monitoring"
     },
     {
-      "name": "DevOps",
-      "createdAt": "2024-01-01T00:00:00.000Z",
-      "updatedAt": "2024-01-01T00:00:00.000Z",
-      "id": "tag-devops-001"
+      "updatedAt": "2026-01-04T10:26:54.475Z",
+      "createdAt": "2026-01-04T10:26:54.475Z",
+      "id": "kbpZOjWRb1yvj4d0",
+      "name": "DevOps"
     }
-  ],
-  "staticData": null,
-  "meta": {
-    "templateCredsSetupCompleted": true
-  },
-  "versionId": "v1.0.0",
-  "id": "multi-server-audit-workflow"
+  ]
 }
